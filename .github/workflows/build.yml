@@ -106,6 +106,9 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           cd debs
+          # GitHub turns the ~ of a Debian version into . in asset names; rename first, so SHA256SUMS
+          # names the files as they are served (apt reads the version from inside the package)
+          for f in *~*.deb; do mv "$f" "${f//\~/.}"; done
           sha256sum *.deb > SHA256SUMS
           tag="v${VERSION}-mirrordash1"
           gh release create "$tag" *.deb SHA256SUMS --repo "$GITHUB_REPOSITORY" --title "WPE WebKit $VERSION for trixie arm64" --notes \
