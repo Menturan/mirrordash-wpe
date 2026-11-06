@@ -34,6 +34,10 @@ trim+=" -DENABLE_PDFJS=OFF -DUSE_ATK=OFF -DENABLE_WPE_LEGACY_API=OFF"
 trim+=" -DENABLE_WPE_PLATFORM_DRM=OFF -DENABLE_WPE_PLATFORM_HEADLESS=OFF"
 sed -i "s|^\tdh_auto_configure -- \$(EXTRA_CMAKE_ARGUMENTS)\$|& $trim|" debian/rules
 grep -q "ENABLE_SPEECH_SYNTHESIS=OFF" debian/rules  # Debian's rules changed: look at the line again
+# Debian's symbols file lists what those options remove (the libwpe API's view backend and the DRM and
+# headless platforms), and dpkg-gensymbols stops a build where a listed symbol is gone. Only those leave
+# the list: any other symbol that disappears still stops the build.
+sed -i -E '/^ (webkit_web_view_(backend_[a-z_]+|get_backend|new)|wpe_(display|screen|toplevel|view)_(drm|headless)(_[a-z_]+)?)@/d' debian/libwpewebkit-2.0-1.symbols
 
 # WebCore's unified sources take 2-3 GB each to compile: one job per 4 GB, or the compiler is killed
 mem=$(free -g | awk '/^Mem:/{print $2}')
