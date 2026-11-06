@@ -13,9 +13,10 @@ version as a release. The MirrorDash OS image installs the newest one.
   packages with a `SHA256SUMS`. The changes to Debian's build: the version gets `~mirrordashN` (N is
   `MIRRORDASH_BUILD` in `build.yml`, one up whenever the build changes), there is no debug info and
   no precompiled headers (so the compiler cache works across runs), and what the mirror's screen
-  never uses is turned off: speech synthesis (flite, 27 MB), spell checking, XSLT, PDF.js, gamepads,
-  camera and recording, MHTML, accessibility (ATK), the legacy libwpe API, the DRM and headless
-  platforms, MiniBrowser and tracing. Less to build, to ship in the image and to attack.
+  never uses is turned off with WebKit's public build options: speech synthesis (flite, 27 MB), spell
+  checking, XSLT, PDF.js, accessibility (ATK), the legacy libwpe API and the DRM and headless
+  platforms. Less to ship in the image and to attack. Only public options, which WebKit supports
+  packagers changing; the build fails if WebKit stops knowing one, rather than turning it back on.
   A cold build takes about 2.5 hours; one that runs out of time keeps its compiler cache, so running
   it again continues.
 
