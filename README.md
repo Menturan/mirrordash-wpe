@@ -17,6 +17,11 @@ version as a release. The MirrorDash OS image installs the newest one.
   checking, XSLT, PDF.js, accessibility (ATK), the legacy libwpe API and the DRM and headless
   platforms. Less to ship in the image and to attack. Only public options, which WebKit supports
   packagers changing; the build fails if WebKit stops knowing one, rather than turning it back on.
+  Before releasing, **Build** runs `smoke-test.sh`: MirrorDash's own screen launcher, compiled against
+  the new packages, must draw in labwc with a headless output and not crash, or nothing is released
+  and the OS image keeps the last release. The release notes list Debian's changes since the last
+  release (its security fixes) and how the runtime dependencies changed (`DEPENDS.txt`).
+  **Smoke test** (`smoke.yml`) runs the same test on a published release by hand.
   A cold build takes about 2.5 hours; one that runs out of time keeps its compiler cache, so running
   it again continues.
 

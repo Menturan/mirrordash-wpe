@@ -14,6 +14,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Our build of a Debian version: one up when the build itself changes (the package's version and the tag)
+  MIRRORDASH_BUILD: "3"
+
 concurrency:
   group: build
   cancel-in-progress: false
@@ -35,8 +39,6 @@ jobs:
       CMAKE_C_COMPILER_LAUNCHER: ccache
       CMAKE_CXX_COMPILER_LAUNCHER: ccache
       DEBFULLNAME: MirrorDash CI
-      # Our build of a Debian version: one up when the build itself changes (the tag and the package's version)
-      MIRRORDASH_BUILD: "3"
       DEBEMAIL: noreply@github.com
     steps:
       - name: Tools and Debian's signed source
@@ -60,6 +62,16 @@ jobs:
         run: |
           cd src/wpewebkit-*/
           apt-get build-dep -y .
+          # The release notes: Debian's own entries since the version of the last release (its security fixes
+          # list WebKit's WSA numbers), and the runtime dependencies against the last release's
+          last=$(curl -fsSI "https://github.com/$GITHUB_REPOSITORY/releases/latest" | awk -F/ 'tolower($1) ~ /^location:/ {print $NF}' | tr -d '\r') || true
+          last_version=$(sed -nE 's/^v(.+)-mirrordash[0-9]+$/\1/p' <<< "$last")
+          {
+            echo "## Debian's changes since the last release (${last:-none})"
+            if [ -z "$last_version" ]; then echo "(no earlier release)"
+            elif [ "$last_version" = "$VERSION" ]; then echo "The same Debian version: only this build changed."
+            else echo '```'; dpkg-parsechangelog --since "$last_version" -S Changes; echo '```'; fi
+          } > ../../NOTES.md
           dch -b -v "${VERSION}~mirrordash${MIRRORDASH_BUILD}" --distribution trixie --force-distribution \
             "Rebuilt for trixie, whose own WPE gets no security fixes, without what the MirrorDash screen never uses."
           # No precompiled headers: each runner builds them with different bytes, so ccache could reuse
@@ -98,14 +110,49 @@ jobs:
         if: always()
         run: ccache -s || true
 
+      - name: What the packages need, against the last release
+        run: |
+          dpkg-deb -f src/libwpewebkit-2.0-1_*.deb Depends | tr ',' '\n' | sed 's/^ *//' | sort > DEPENDS.txt
+          {
+            echo; echo "## Runtime dependencies against the last release"
+            if curl -fsSL -o /tmp/last-depends "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/DEPENDS.txt"; then
+              echo '```diff'; diff -u /tmp/last-depends DEPENDS.txt | tail -n +3 || true; echo '```'
+            else echo "(the last release has no DEPENDS.txt)"; fi
+          } >> NOTES.md
+
       - uses: actions/upload-artifact@v7
         with:
           name: debs
-          path: src/*.deb
+          path: |
+            src/*.deb
+            NOTES.md
+            DEPENDS.txt
           if-no-files-found: error
 
-  release:
+  # MirrorDash's launcher on the new packages in a headless labwc: a build that doesn't run is never released
+  test:
     needs: build
+    runs-on: ubuntu-24.04-arm
+    container: debian:trixie
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Tools
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends curl ca-certificates > /dev/null
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: debs
+          path: built
+
+      - name: Smoke test
+        run: ./smoke-test.sh built/src
+
+  release:
+    needs: [build, test]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -120,11 +167,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
         run: |
+          mv debs/src/*.deb debs/ && rmdir debs/src
           cd debs
           # GitHub turns the ~ of a Debian version into . in asset names; rename first, so SHA256SUMS
           # names the files as they are served (apt reads the version from inside the package)
           for f in *~*.deb; do mv "$f" "${f//\~/.}"; done
           sha256sum *.deb > SHA256SUMS
           tag="v${VERSION}-mirrordash${MIRRORDASH_BUILD}"
-          gh release create "$tag" *.deb SHA256SUMS --repo "$GITHUB_REPOSITORY" --title "WPE WebKit $VERSION for trixie arm64" --notes \
-            "Debian sid's wpewebkit $VERSION (https://tracker.debian.org/pkg/wpewebkit), rebuilt for Debian trixie arm64 by [this run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID): no debug info, no precompiled headers, and without speech, spell checking, XSLT, PDF.js, accessibility, libwpe and the DRM and headless platforms. Check the files with SHA256SUMS."
+          {
+            echo "Debian sid's wpewebkit $VERSION (https://tracker.debian.org/pkg/wpewebkit), rebuilt for Debian trixie arm64 by [this run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID): no debug info, no precompiled headers, and without speech, spell checking, XSLT, PDF.js, accessibility, libwpe and the DRM and headless platforms. MirrorDash's launcher ran on it (smoke-test.sh). Check the files with SHA256SUMS."
+            echo
+            cat NOTES.md
+          } > ../notes.md
+          gh release create "$tag" *.deb SHA256SUMS DEPENDS.txt --repo "$GITHUB_REPOSITORY" --title "WPE WebKit $VERSION for trixie arm64" --notes-file ../notes.md
