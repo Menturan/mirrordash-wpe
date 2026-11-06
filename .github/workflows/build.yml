@@ -1,7 +1,7 @@
 name: Build
 
-# Debian sid's wpewebkit, rebuilt as it is for trixie arm64, and published as a release that the
-# MirrorDash OS image installs. Trixie's own WPE (2.48.3) gets no security fixes ("wpewebkit is
+# Debian sid's wpewebkit, rebuilt for trixie arm64 without the features the mirror never uses, and
+# published as a release that the MirrorDash OS image installs. Trixie's own WPE (2.48.3) gets no security fixes ("wpewebkit is
 # generally unsupported from bookworm onwards", Debian's security-support.deb13).
 # Started by check.yml when sid has a new version, or by hand.
 on:
@@ -35,6 +35,8 @@ jobs:
       CMAKE_C_COMPILER_LAUNCHER: ccache
       CMAKE_CXX_COMPILER_LAUNCHER: ccache
       DEBFULLNAME: MirrorDash CI
+      # Our build of a Debian version: one up when the build itself changes (the tag and the package's version)
+      MIRRORDASH_BUILD: "2"
       DEBEMAIL: noreply@github.com
     steps:
       - name: Tools and Debian's signed source
@@ -58,11 +60,22 @@ jobs:
         run: |
           cd src/wpewebkit-*/
           apt-get build-dep -y .
-          dch --local "~mirrordash" --distribution trixie "Rebuilt for trixie, whose own WPE gets no security fixes."
+          dch -v "${VERSION}~mirrordash${MIRRORDASH_BUILD}" --distribution trixie --force-distribution \
+            "Rebuilt for trixie, whose own WPE gets no security fixes, without what the MirrorDash screen never uses."
           # No precompiled headers: each runner builds them with different bytes, so ccache could reuse
           # no object compiled against one (learnt from dariyooo/wpe-webkit-binaries)
           sed -i 's/^EXTRA_CMAKE_ARGUMENTS = -DPORT=WPE /&-DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON /' debian/rules
           grep -q DISABLE_PRECOMPILE_HEADERS debian/rules
+          # Off: what the mirror's screen never uses (speech, spell checking, XSLT, PDF.js, gamepads, camera
+          # and recording, MHTML, accessibility, libwpe, the DRM and headless platforms, MiniBrowser, tracing):
+          # less to build, ship and attack. After Debian's own flags, so these win.
+          trim="-DENABLE_MINIBROWSER=OFF -DENABLE_SPEECH_SYNTHESIS=OFF -DUSE_FLITE=OFF -DENABLE_SPELLCHECK=OFF"
+          trim+=" -DENABLE_XSLT=OFF -DENABLE_PDFJS=OFF -DENABLE_GAMEPAD=OFF -DENABLE_MEDIA_STREAM=OFF -DENABLE_MEDIA_RECORDER=OFF"
+          trim+=" -DENABLE_MHTML=OFF -DUSE_ATK=OFF -DENABLE_WPE_LEGACY_API=OFF -DENABLE_WPE_PLATFORM_DRM=OFF"
+          trim+=" -DENABLE_WPE_PLATFORM_HEADLESS=OFF -DUSE_SYSPROF_CAPTURE=OFF"
+          sed -i "s|^\tdh_auto_configure -- \$(EXTRA_CMAKE_ARGUMENTS)\$|& $trim|" debian/rules
+          grep -q "ENABLE_SPEECH_SYNTHESIS=OFF" debian/rules
+          sed -i '/MiniBrowser/d' debian/libwpewebkit-2.0-1.install  # a listed file that isn't built stops the build
           # WebCore's unified sources take 2-3 GB each to compile: one job per 4 GB, or the compiler is killed
           jobs=$(( $(free -g | awk '/^Mem:/{print $2}') / 4 )); jobs=$(( jobs < 1 ? 1 : jobs > $(nproc) ? $(nproc) : jobs ))
           echo "$(nproc) CPUs, $(free -g | awk '/^Mem:/{print $2}') GB: $jobs jobs"
@@ -110,6 +123,6 @@ jobs:
           # names the files as they are served (apt reads the version from inside the package)
           for f in *~*.deb; do mv "$f" "${f//\~/.}"; done
           sha256sum *.deb > SHA256SUMS
-          tag="v${VERSION}-mirrordash1"
+          tag="v${VERSION}-mirrordash${MIRRORDASH_BUILD}"
           gh release create "$tag" *.deb SHA256SUMS --repo "$GITHUB_REPOSITORY" --title "WPE WebKit $VERSION for trixie arm64" --notes \
-            "Debian sid's wpewebkit $VERSION (https://tracker.debian.org/pkg/wpewebkit), rebuilt unchanged for Debian trixie arm64 by [this run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) (no debug info, no precompiled headers). Check the files with SHA256SUMS."
+            "Debian sid's wpewebkit $VERSION (https://tracker.debian.org/pkg/wpewebkit), rebuilt for Debian trixie arm64 by [this run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID): no debug info, no precompiled headers, and without speech, spell checking, XSLT, PDF.js, gamepads, camera and recording, MHTML, accessibility, libwpe, the DRM and headless platforms and MiniBrowser. Check the files with SHA256SUMS."

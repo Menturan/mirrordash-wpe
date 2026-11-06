@@ -30,7 +30,7 @@ jobs:
           version=$(curl -fsS https://sources.debian.org/api/src/wpewebkit/ \
             | jq -r '[.versions[] | select(.suites | index("sid"))][0].version')
           [[ "$version" =~ ^[0-9][0-9.]*-[0-9]+$ ]] || { echo "No sid version found: $version"; exit 1; }
-          if gh release view "v${version}-mirrordash1" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+          if gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName -q '.[].tagName' | grep -q "^v${version}-mirrordash"; then
             echo "wpewebkit $version is already released"
           else
             echo "wpewebkit $version is new: building it"
