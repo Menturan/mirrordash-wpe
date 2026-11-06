@@ -9,7 +9,7 @@ version as a release. The MirrorDash OS image installs the newest one.
 - **Check Debian** (`check.yml`) runs every Monday: when sid has a version without a release, it
   starts **Build**.
 - **Build** (`build.yml`) fetches Debian's source with `dget`, which checks its signature against
-  Debian's keyring, builds it in a trixie container on GitHub's arm64 runner and publishes the
+  Debian's keyring, builds it with `build.sh` in a trixie container on GitHub's arm64 runner and publishes the
   packages with a `SHA256SUMS`. The changes to Debian's build: the version gets `~mirrordashN` (N is
   `MIRRORDASH_BUILD` in `build.yml`, one up whenever the build changes), there is no debug info and
   no precompiled headers (so the compiler cache works across runs), and what the mirror's screen
@@ -24,6 +24,8 @@ version as a release. The MirrorDash OS image installs the newest one.
   **Smoke test** (`smoke.yml`) runs the same test on a published release by hand.
   A cold build takes about 2.5 hours; one that runs out of time keeps its compiler cache, so running
   it again continues.
+- **Lint** (`lint.yml`) runs shellcheck and actionlint on every push. Dependabot opens a pull request
+  when an action the workflows use has a new version.
 
 To build a version by hand: `gh workflow run build.yml -f version=2.54.2-1`.
 

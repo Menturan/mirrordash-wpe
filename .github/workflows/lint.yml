@@ -1,0 +1,23 @@
+name: Lint
+
+# The scripts and workflows on every push: a mistake shows here, not two hours into a build.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Scripts
+        run: shellcheck -S warning ./*.sh
+
+      # actionlint's image has shellcheck too, so it checks the workflows' run: blocks as well
+      - name: Workflows
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color

@@ -14,6 +14,7 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
     container: debian:trixie
     defaults:
       run:
@@ -32,7 +33,7 @@ jobs:
           mkdir debs && cd debs
           base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
           curl -fsSL --retry 3 -o SHA256SUMS "$base/SHA256SUMS"
-          for deb in $(awk '{print $2}' SHA256SUMS | grep -E '^libwpewebkit-2\.0-(1|dev)_'); do curl -fsSL --retry 3 -o "$deb" "$base/$deb"; done
+          awk '{print $2}' SHA256SUMS | grep -E '^libwpewebkit-2\.0-(1|dev)_' | while read -r deb; do curl -fsSL --retry 3 -o "$deb" "$base/$deb"; done
           sha256sum --check --ignore-missing --strict SHA256SUMS
 
       - name: Smoke test

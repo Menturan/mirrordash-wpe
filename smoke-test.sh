@@ -23,7 +23,7 @@ gcc -std=c11 -O2 -Wall -Wextra -Werror -Wno-error=deprecated-declarations -o /tm
 
 # labwc on wlroots' headless backend (one output, no GPU, no seat)
 export XDG_RUNTIME_DIR=/tmp/xdg
-mkdir -p -m 700 "$XDG_RUNTIME_DIR"
+mkdir -m 700 "$XDG_RUNTIME_DIR"
 WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 labwc > /tmp/labwc.log 2>&1 &
 for _ in $(seq 40); do [ -S "$XDG_RUNTIME_DIR/wayland-0" ] && break; sleep 0.5; done
 [ -S "$XDG_RUNTIME_DIR/wayland-0" ] || { echo "labwc didn't start"; cat /tmp/labwc.log; exit 1; }
