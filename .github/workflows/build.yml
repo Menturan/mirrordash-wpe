@@ -60,7 +60,7 @@ jobs:
         run: |
           cd src/wpewebkit-*/
           apt-get build-dep -y .
-          dch -v "${VERSION}~mirrordash${MIRRORDASH_BUILD}" --distribution trixie --force-distribution \
+          dch -b -v "${VERSION}~mirrordash${MIRRORDASH_BUILD}" --distribution trixie --force-distribution \
             "Rebuilt for trixie, whose own WPE gets no security fixes, without what the MirrorDash screen never uses."
           # No precompiled headers: each runner builds them with different bytes, so ccache could reuse
           # no object compiled against one (learnt from dariyooo/wpe-webkit-binaries)
