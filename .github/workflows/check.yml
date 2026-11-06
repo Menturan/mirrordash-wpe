@@ -1,0 +1,38 @@
+name: Check Debian
+
+# Every Monday: when Debian sid has a wpewebkit there is no release of yet, build it. The check also
+# restores the compiler cache, which GitHub evicts after 7 days unused, so the next version builds on
+# the objects of the last one (learnt from dariyooo/wpe-webkit-binaries).
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write  # to start build.yml
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Keep the compiler cache from being evicted
+        uses: actions/cache/restore@v6
+        with:
+          path: .ccache
+          key: ccache-keepalive-${{ github.run_id }}
+          restore-keys: ccache-
+
+      - name: Build sid's version if it has no release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(curl -fsS https://sources.debian.org/api/src/wpewebkit/ \
+            | jq -r '[.versions[] | select(.suites | index("sid"))][0].version')
+          [[ "$version" =~ ^[0-9][0-9.]*-[0-9]+$ ]] || { echo "No sid version found: $version"; exit 1; }
+          if gh release view "v${version}-mirrordash1" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "wpewebkit $version is already released"
+          else
+            echo "wpewebkit $version is new: building it"
+            gh workflow run build.yml --repo "$GITHUB_REPOSITORY" -f version="$version"
+          fi
