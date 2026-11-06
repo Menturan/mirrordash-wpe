@@ -1,0 +1,39 @@
+name: Smoke test
+
+# smoke-test.sh against a published release, by hand (build.yml runs it on every build before releasing).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. v2.54.2-1-mirrordash3"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04-arm
+    container: debian:trixie
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Tools
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends curl ca-certificates > /dev/null
+
+      - uses: actions/checkout@v7
+
+      - name: The release's packages
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9][0-9.]*-[0-9]+-mirrordash[0-9]+$ ]] || { echo "Not a release tag: $TAG"; exit 1; }
+          mkdir debs && cd debs
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          curl -fsSL --retry 3 -o SHA256SUMS "$base/SHA256SUMS"
+          for deb in $(awk '{print $2}' SHA256SUMS | grep -E '^libwpewebkit-2\.0-(1|dev)_'); do curl -fsSL --retry 3 -o "$deb" "$base/$deb"; done
+          sha256sum --check --ignore-missing --strict SHA256SUMS
+
+      - name: Smoke test
+        run: ./smoke-test.sh debs
