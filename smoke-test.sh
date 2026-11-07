@@ -2,6 +2,7 @@
 # Smoke test of built WPE packages, before they are released: MirrorDash's own screen launcher, compiled
 # against them as the OS image does, runs in labwc with a headless output and must draw and not crash.
 # Run as root in a debian:trixie container: ./smoke-test.sh <dir with libwpewebkit-2.0-{1,dev}_*.deb>
+# MIRRORDASH_REF: the MirrorDash branch or tag whose launcher to test (default master)
 # What it can't catch: the Raspberry Pi's GPU (vc4). MirrorDash's OS test versions are the check for that.
 set -euo pipefail
 debs=$(realpath "${1:?the directory with the .debs}")
@@ -11,8 +12,8 @@ apt-get update -qq
 apt-get install -y -qq --no-install-recommends "$debs"/libwpewebkit-2.0-1_*.deb "$debs"/libwpewebkit-2.0-dev_*.deb \
     gcc libc6-dev pkg-config labwc ca-certificates curl > /dev/null
 
-# The launcher and its start page, as MirrorDash's master has them now
-raw=https://raw.githubusercontent.com/Menturan/MirrorDash/master
+# The launcher and its start page, as MirrorDash's master (or MIRRORDASH_REF) has them now
+raw=https://raw.githubusercontent.com/Menturan/MirrorDash/${MIRRORDASH_REF:-master}
 curl -fsSL --retry 3 -o /tmp/mirrordash-screen.c "$raw/scripts/screen/mirrordash-screen.c"
 mkdir -p /home/pi/mirrordash
 curl -fsSL --retry 3 -o /home/pi/mirrordash/loading.html "$raw/mirrordash_core/static/loading.html"

@@ -1,12 +1,17 @@
 name: Smoke test
 
 # smoke-test.sh against a published release, by hand (build.yml runs it on every build before releasing).
+# Also how to try a change to MirrorDash's launcher: push it to a branch and give that branch here.
 on:
   workflow_dispatch:
     inputs:
       tag:
         description: "Release tag, e.g. v2.54.2-1-mirrordash3"
         required: true
+      mirrordash_ref:
+        description: "MirrorDash branch or tag whose launcher to test"
+        required: false
+        default: master
 
 permissions:
   contents: read
@@ -37,4 +42,6 @@ jobs:
           sha256sum --check --ignore-missing --strict SHA256SUMS
 
       - name: Smoke test
+        env:
+          MIRRORDASH_REF: ${{ inputs.mirrordash_ref }}
         run: ./smoke-test.sh debs
