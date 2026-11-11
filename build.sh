@@ -39,10 +39,11 @@ grep -q "ENABLE_SPEECH_SYNTHESIS=OFF" debian/rules  # Debian's rules changed: lo
 # the list: any other symbol that disappears still stops the build.
 sed -i -E '/^ (webkit_web_view_(backend_[a-z_]+|get_backend|new)|wpe_(display|screen|toplevel|view)_(drm|headless)(_[a-z_]+)?)@/d' debian/libwpewebkit-2.0-1.symbols
 
-# WebCore's unified sources take 2-3 GB each to compile: one job per 4 GB, or the compiler is killed
-mem=$(free -g | awk '/^Mem:/{print $2}')
-jobs=$(( mem / 4 )); jobs=$(( jobs < 1 ? 1 : jobs > $(nproc) ? $(nproc) : jobs ))
-echo "$(nproc) CPUs, $mem GB: $jobs jobs"
+# WebCore's unified sources take 2-3 GB each to compile: one job per 4 GB, or the compiler is killed.
+# To the nearest: the runner's 16 GB shows as 15.6, which rounded down gave 3 jobs on its 4 CPUs.
+mem=$(free -m | awk '/^Mem:/{print $2}')
+jobs=$(( (mem + 2048) / 4096 )); jobs=$(( jobs < 1 ? 1 : jobs > $(nproc) ? $(nproc) : jobs ))
+echo "$(nproc) CPUs, $mem MB: $jobs jobs"
 start=$(date +%s)
 # No debug info (the -g Debian's rules turn into -g1): smaller objects, a quicker link
 DEB_CFLAGS_STRIP="-g" DEB_CXXFLAGS_STRIP="-g" \

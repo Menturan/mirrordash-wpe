@@ -23,7 +23,8 @@ version as a release. The MirrorDash OS image installs the newest one.
   release (its security fixes) and how the runtime dependencies changed (`DEPENDS.txt`).
   **Smoke test** (`smoke.yml`) runs the same test on a published release by hand.
   A cold build takes about 2.5 hours; one that runs out of time keeps its compiler cache, so running
-  it again continues.
+  it again continues. A build that fails opens an issue here: nothing else would say that the OS image
+  stays on the last release.
 - **Lint** (`lint.yml`) runs shellcheck and actionlint on every push. Dependabot opens a pull request
   when an action the workflows use has a new version.
 

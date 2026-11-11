@@ -47,7 +47,14 @@ jobs:
         run: |
           [[ "$VERSION" =~ ^[0-9][0-9.]*-[0-9]+$ ]] || { echo "Not a Debian version: $VERSION"; exit 1; }
           apt-get update
-          apt-get install -y --no-install-recommends devscripts debian-keyring ccache ca-certificates dpkg-dev equivs procps curl
+          # zstd: without it the cache action packs with gzip here, and check.yml (on the runner, which has
+          # zstd) then finds no cache to keep alive: the two only share a cache packed the same way
+          apt-get install -y --no-install-recommends devscripts debian-keyring ccache ca-certificates dpkg-dev equivs procps curl zstd
+          # A version already released under this build number would only fail at the release, hours from now
+          tag="v${VERSION}-mirrordash${MIRRORDASH_BUILD}"
+          if curl -fsSI -o /dev/null "https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"; then
+            echo "::error::$tag is already released: raise MIRRORDASH_BUILD in build.yml to build it again"; exit 1
+          fi
           mkdir src && cd src
           # dget checks the .dsc's signature against Debian's keyring and the files against the .dsc
           dget "https://deb.debian.org/debian/pool/main/w/wpewebkit/wpewebkit_${VERSION}.dsc"
@@ -56,19 +63,20 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: .ccache
-          key: ccache-${{ inputs.version }}-${{ github.run_id }}
+          key: ccache-${{ inputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ccache-
 
       - name: Build
         timeout-minutes: 330
         run: ./build.sh
 
+      # The attempt is in the key: a key is written once, and a run started again keeps its run id
       - name: Save the compiler cache (also after a timeout, so the next run goes on from here)
         if: always()
         uses: actions/cache/save@v6
         with:
           path: .ccache
-          key: ccache-${{ inputs.version }}-${{ github.run_id }}
+          key: ccache-${{ inputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Cache
         if: always()
@@ -105,6 +113,23 @@ jobs:
 
       - name: Smoke test
         run: ./smoke-test.sh built/src
+
+  # A build check.yml started fails without a word to anyone (GitHub tells the one who started a run, and
+  # that was the workflow's own token), and the OS image would stay on the last release: an issue says so
+  failed:
+    needs: [build, test, release]
+    if: failure()
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "The build of wpewebkit $VERSION failed" \
+            --body "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID failed, so there is no release of $VERSION and the MirrorDash OS image stays on the last one. check.yml starts the build again every Monday until a release exists."
 
   release:
     needs: [build, test]
